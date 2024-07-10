@@ -101,9 +101,15 @@ void OnReceivedWorker(const AMQP::Message &msg) {
     for (auto &follower_id : followers_id_set) {
       redis_client->zadd(std::to_string(follower_id), options, value);
     }
+  redis_span->Finish();
 
+    // Redis sync
+    auto redis_sync_span = opentracing::Tracer::Global()->StartSpan(
+        "write_home_timeline_redis_sync_client", 
+        {opentracing::ChildOf(&span->context())});
     redis_client->sync_commit();
-    redis_span->Finish();
+    redis_sync_span->Finish();
+
     _redis_client_pool->Keepalive(redis_client_wrapper);
   } catch (...) {
     LOG(error) << "OnReveived worker error";
